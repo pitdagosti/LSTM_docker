@@ -92,6 +92,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 node_name = parts[0]
                 temperature_label = parts[1]  # Etichetta della temperatura
                 temperatura_float = float(parts[2])
+                
+                 if temperatura_float == 0.0 or temperatura_float is None:
+                continue
+                
             except ValueError as e:
                 logging.error(f"Errore nella conversione dei dati: {e}")
                 continue
