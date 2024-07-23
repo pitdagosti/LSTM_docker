@@ -1,142 +1,126 @@
-import socket
 import numpy as np
 import tensorflow as tf
 import re
 import time
-import sqlite3
-from sklearn.preprocessing import MinMaxScaler
-import logging
 import os
-
-# Configurazione del logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
+import csv
+from sklearn.preprocessing import MinMaxScaler
 
 def predict_future(X_test, scaler, model):
     try:
         X_test_scaled = scaler.transform(X_test)
-        future = model.predict(X_test_scaled.reshape(1, -1, 1))
+        X_test_scaled = X_test_scaled.reshape(1, -1, 1)  # Assicuriamoci che il dato sia della forma corretta per il modello
+        future = model.predict(X_test_scaled)
         future_value = scaler.inverse_transform(future)[0][0]
         return future_value
     except Exception as e:
-        logging.error(f"Errore durante la predizione: {e}")
+        print(f"Errore durante la predizione: {e}")
         return None
 
 def clean_value(value):
     cleaned_value = re.sub(r"[\[\]']", "", str(value))
     return cleaned_value
 
-# Funzione per inizializzare il database
-def init_db(db_path):
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS temperatures
-                 (node_name TEXT, id_attuale INTEGER, future_value REAL, temperature_label TEXT, temperatura_float REAL, timestamp INTEGER)''')
-    conn.commit()
-    conn.close()
+def save_to_csv(file_path, data):
+    file_exists = os.path.isfile(file_path)
+    with open(file_path, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['ID', 'Node_Name', 'Temperature_Actual', 'Temperature_Future', 'Label', 'Timestamp'])
+        writer.writerow(data)
 
-# Funzione per salvare i dati nel database
-def save_to_db(db_path, data):
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute("INSERT INTO temperatures (node_name, id_attuale, future_value, temperature_label, temperatura_float, timestamp) VALUES (?, ?, ?, ?, ?, ?)", data)
-    conn.commit()
-    conn.close()
+try:
+    loaded_model = tf.keras.models.load_model("model_50_sens.keras")
+    print("Modello caricato con successo.")
+except Exception as e:
+    print(f"Errore durante il caricamento del modello: {e}")
+    raise
 
-# Path del database
-db_path = '/experiment/temperature_data.db'
-
-# Inizializza il database
-init_db(db_path)
-
-# Carica il modello una volta
-loaded_model = tf.keras.models.load_model("model_J0700_VELOCE.keras")
-logging.info("Modello caricato con successo.")
-
-# Configurazione di TensorFlow
 tf.config.run_functions_eagerly(True)
 tf.data.experimental.enable_debug_mode()
 
-# Inizializza il MinMaxScaler per normalizzare i dati
-scaler = MinMaxScaler(feature_range=(0, 1))
-
-# Definizione della finestra di dati scorrevole
 window_size = 20
-current_window = []
 
-# Connetti al server TCP
-HOST = '127.0.0.1'  # Indirizzo IP del server
-PORT = 7070         # Porta su cui il server è in ascolto
+# Dizionari per tracciare le finestre di dati e gli scaler per ogni nodo
+node_windows = {}
+node_scalers = {}
+node_scaler_fitted = {}
 
-# Variabile per tenere traccia se il MinMaxScaler è stato addestrato
-scaler_fitted = False
+# Dizionario per tracciare l'ID corrente per ogni nodo
+node_ids = {}
 
-# Variabile per tracciare l'ID attuale delle temperature
-id_attuale = 0
+file_path = '../dati/50_sensors/report_2024.07.18_50nodes.txt'
+csv_file_path = 'temperature_predictions.csv'
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.connect((HOST, PORT))
-    logging.info('Connesso al server TCP')
+try:
+    with open(file_path, 'r') as file:
+        print('File aperto con successo.')
 
-    while True:
-        data = s.recv(1024)  # Ricevi dati dal server
+        for line in file:
+            decoded_data = line.strip()
 
-        if not data:
-            break
-
-        decoded_data = data.decode('utf-8').strip()  # Decodifica e rimuovi spazi bianchi
-        #logging.debug(f"Dati ricevuti: {decoded_data}")
-
-        parts = decoded_data.split(';')
-        if len(parts) == 3:
-            try:
-                node_name = parts[0]
-                temperature_label = parts[1]  # Etichetta della temperatura
-                temperatura_float = float(parts[2])
-                
-                 if temperatura_float == 0.0 or temperatura_float is None:
+            if not decoded_data:
+                print("Linea vuota trovata, saltata.")
                 continue
-                
-            except ValueError as e:
-                logging.error(f"Errore nella conversione dei dati: {e}")
+
+            parts = decoded_data.split(';')
+            if len(parts) == 3:
+                try:
+                    node_name = parts[0]
+                    temperature_label = parts[1]
+                    temperatura_float = float(parts[2])
+
+                    if temperatura_float == 0.0 or temperatura_float is None:
+                        print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
+                        continue
+
+                except ValueError as e:
+                    print(f"Errore nella conversione dei dati: {e}")
+                    continue
+            else:
+                print("Formato dei dati ricevuti non valido.")
                 continue
-        else:
-            logging.error("Formato dei dati ricevuti non valido.")
-            continue
 
-        # Aggiorna la finestra di dati scorrevole
-        current_window.append(temperatura_float)
-        if len(current_window) > window_size:
-            current_window.pop(0)  # Rimuove il valore più vecchio se la finestra supera window_size
+            # Inizializza la finestra di dati e lo scaler per il nodo se non esistono
+            if node_name not in node_windows:
+                node_windows[node_name] = []
+                node_scalers[node_name] = MinMaxScaler(feature_range=(0, 1))
+                node_scaler_fitted[node_name] = False
 
-        #logging.debug(f"Finestra corrente: {current_window}")
+            # Aggiorna la finestra di dati scorrevole per il nodo corrente
+            node_windows[node_name].append(temperatura_float)
+            if len(node_windows[node_name]) > window_size:
+                node_windows[node_name].pop(0)  # Rimuove il valore più vecchio se la finestra supera window_size
 
-        # Addestra il MinMaxScaler sui primi dati ricevuti, se non è ancora stato addestrato
-        if not scaler_fitted and len(current_window) >= window_size:
-            data_array = np.array(current_window[-window_size:]).reshape(-1, 1)
-            scaler.fit(data_array)
-            scaler_fitted = True
-            logging.info("MinMaxScaler addestrato con successo.")
+            # Addestra il MinMaxScaler per il nodo corrente
+            if not node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+                data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
+                node_scalers[node_name].fit(data_array)
+                node_scaler_fitted[node_name] = True
+                print(f"MinMaxScaler addestrato con successo per il nodo {node_name}.")
 
-        # Effettua la predizione basata sulla finestra di dati scorrevole attuale
-        if scaler_fitted and len(current_window) >= window_size:
-            X_test = np.array(current_window[-window_size:]).reshape(-1, 1)
-            #logging.debug(f"Dati per la predizione: {X_test}")
-            
-            future_value = predict_future(X_test, scaler, loaded_model)
-            if future_value is not None:
-                future_value_clean = clean_value(future_value)
-                current_time_epoch = int(time.time())
-                
-                # Incrementa l'ID attuale
-                id_attuale += 1
-                
-                # Crea i dati da salvare nel database
-                data_to_save = (node_name, id_attuale, future_value_clean, temperature_label, temperatura_float, current_time_epoch)
-                
-                # Salva i dati nel database
-                save_to_db(db_path, data_to_save)
-                
-                # Logga l'output
-                logging.info(f"Output: {data_to_save}")
+            # Effettua la predizione per il nodo corrente
+            if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+                X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
 
-        time.sleep(1)  # Aggiungi un ritardo per evitare di ricevere troppi dati rapidamente
+                #print(f"Predizione per il nodo {node_name} con dati: {X_test.flatten()}")  # Log aggiuntivo
+                future_value = predict_future(X_test, node_scalers[node_name], loaded_model)
+                if future_value is not None:
+                    future_value_clean = clean_value(future_value)
+                    current_time_epoch = int(time.time())
+
+                    if node_name not in node_ids:
+                        node_ids[node_name] = 0
+                    else:
+                        node_ids[node_name] += 1
+
+                    data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value_clean, temperature_label, current_time_epoch]
+
+                    save_to_csv(csv_file_path, data_to_save)
+                    print(f"Output: {data_to_save}")
+
+            #time.sleep(1)  # Aggiungi un ritardo per evitare di ricevere troppi dati rapidamente
+except FileNotFoundError as e:
+    print(f"File non trovato: {e}")
+except Exception as e:
+    print(f"Errore inaspettato: {e}")
