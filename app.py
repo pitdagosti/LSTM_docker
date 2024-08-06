@@ -4,7 +4,11 @@ import re
 import time
 import os
 import csv
+import socket
 from sklearn.preprocessing import MinMaxScaler
+
+print("Inizio script")
+
 
 def predict_future(X_test, scaler, model):
     try:
@@ -30,7 +34,7 @@ def save_to_csv(file_path, data):
         writer.writerow(data)
 
 try:
-    loaded_model = tf.keras.models.load_model("model_50_sens.keras")
+    loaded_model = tf.keras.models.load_model("model_50_sens_intel.keras")
     print("Modello caricato con successo.")
 except Exception as e:
     print(f"Errore durante il caricamento del modello: {e}")
@@ -49,15 +53,23 @@ node_scaler_fitted = {}
 # Dizionario per tracciare l'ID corrente per ogni nodo
 node_ids = {}
 
-file_path = '../dati/50_sensors/report_2024.07.18_50nodes.txt'
-csv_file_path = 'temperature_predictions.csv'
+# Configurazione della connessione TCP
+server_ip = '127.0.0.1'  # Indirizzo IP del server TCP
+server_port = 7070        # Porta del server TCP
 
+# Creazione del socket e connessione al server
 try:
-    with open(file_path, 'r') as file:
-        print('File aperto con successo.')
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((server_ip, server_port))
+        print(f"Connesso al server TCP {server_ip}:{server_port}")
 
-        for line in file:
-            decoded_data = line.strip()
+        while True:
+            data = s.recv(1024).decode('utf-8').strip()
+            if not data:
+                print("Nessun dato ricevuto. Connessione chiusa.")
+                break
+
+            decoded_data = data.strip()
 
             if not decoded_data:
                 print("Linea vuota trovata, saltata.")
@@ -116,11 +128,12 @@ try:
 
                     data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value_clean, temperature_label, current_time_epoch]
 
-                    save_to_csv(csv_file_path, data_to_save)
+                    save_to_csv('/experiment/temperature_predictions.csv', data_to_save)
                     print(f"Output: {data_to_save}")
 
-            #time.sleep(1)  # Aggiungi un ritardo per evitare di ricevere troppi dati rapidamente
-except FileNotFoundError as e:
-    print(f"File non trovato: {e}")
+            time.sleep(0.5)  # Aggiungi un ritardo per evitare di ricevere troppi dati rapidamente
+
 except Exception as e:
-    print(f"Errore inaspettato: {e}")
+    print(f"Errore durante la connessione o l'elaborazione: {e}")
+finally:
+    print("Chiusura della connessione e terminazione del programma.")
