@@ -1,6 +1,6 @@
 numpy==1.26.3
 pandas==2.1.4
-h5py==3.9.0
+h5py==3.10.0
 ujson==5.4.0
 tensorflow==2.16.2
 scikit-learn==1.2.2
