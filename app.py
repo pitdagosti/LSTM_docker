@@ -7,9 +7,6 @@ import csv
 import socket
 from sklearn.preprocessing import MinMaxScaler
 
-print("Inizio script")
-
-
 def predict_future(X_test, scaler, model):
     try:
         X_test_scaled = scaler.transform(X_test)
@@ -34,7 +31,7 @@ def save_to_csv(file_path, data):
         writer.writerow(data)
 
 try:
-    loaded_model = tf.keras.models.load_model("model_50_sens_intel.keras")
+    loaded_model = tf.keras.models.load_model("model_50_sens.keras")
     print("Modello caricato con successo.")
 except Exception as e:
     print(f"Errore durante il caricamento del modello: {e}")
@@ -53,87 +50,98 @@ node_scaler_fitted = {}
 # Dizionario per tracciare l'ID corrente per ogni nodo
 node_ids = {}
 
-# Configurazione della connessione TCP
-server_ip = '127.0.0.1'  # Indirizzo IP del server TCP
-server_port = 7070        # Porta del server TCP
+# Indirizzo e porta del server TCP
+TCP_IP = '100.109.221.5'  # Cambia con l'indirizzo del server
+TCP_PORT = 7070       # Cambia con la porta corretta
+BUFFER_SIZE = 1024
 
-# Creazione del socket e connessione al server
+# Connessione al server TCP
 try:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((server_ip, server_port))
-        print(f"Connesso al server TCP {server_ip}:{server_port}")
-
-        while True:
-            data = s.recv(1024).decode('utf-8').strip()
-            if not data:
-                print("Nessun dato ricevuto. Connessione chiusa.")
-                break
-
-            decoded_data = data.strip()
-
-            if not decoded_data:
-                print("Linea vuota trovata, saltata.")
-                continue
-
-            parts = decoded_data.split(';')
-            if len(parts) == 3:
-                try:
-                    node_name = parts[0]
-                    temperature_label = parts[1]
-                    temperatura_float = float(parts[2])
-
-                    if temperatura_float == 0.0 or temperatura_float is None:
-                        print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
-                        continue
-
-                except ValueError as e:
-                    print(f"Errore nella conversione dei dati: {e}")
-                    continue
-            else:
-                print("Formato dei dati ricevuti non valido.")
-                continue
-
-            # Inizializza la finestra di dati e lo scaler per il nodo se non esistono
-            if node_name not in node_windows:
-                node_windows[node_name] = []
-                node_scalers[node_name] = MinMaxScaler(feature_range=(0, 1))
-                node_scaler_fitted[node_name] = False
-
-            # Aggiorna la finestra di dati scorrevole per il nodo corrente
-            node_windows[node_name].append(temperatura_float)
-            if len(node_windows[node_name]) > window_size:
-                node_windows[node_name].pop(0)  # Rimuove il valore più vecchio se la finestra supera window_size
-
-            # Addestra il MinMaxScaler per il nodo corrente
-            if not node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
-                data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
-                node_scalers[node_name].fit(data_array)
-                node_scaler_fitted[node_name] = True
-                print(f"MinMaxScaler addestrato con successo per il nodo {node_name}.")
-
-            # Effettua la predizione per il nodo corrente
-            if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
-                X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
-
-                #print(f"Predizione per il nodo {node_name} con dati: {X_test.flatten()}")  # Log aggiuntivo
-                future_value = predict_future(X_test, node_scalers[node_name], loaded_model)
-                if future_value is not None:
-                    future_value_clean = clean_value(future_value)
-                    current_time_epoch = int(time.time())
-
-                    if node_name not in node_ids:
-                        node_ids[node_name] = 0
-                    else:
-                        node_ids[node_name] += 1
-
-                    data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value_clean, temperature_label, current_time_epoch]
-
-                    save_to_csv('/experiment/temperature_predictions.csv', data_to_save)
-                    print(f"Output: {data_to_save}")
-
-            time.sleep(0.5)  # Aggiungi un ritardo per evitare di ricevere troppi dati rapidamente
-
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((TCP_IP, TCP_PORT))
+    print(f"Connesso al server TCP {TCP_IP}:{TCP_PORT}.")
 except Exception as e:
-    print(f"Errore durante la connessione o l'elaborazione: {e}")
+    print(f"Errore durante la connessione al server: {e}")
+    raise
+
+csv_file_path = 'temperature_predictions.csv'
+
+try:
+    while True:
+        data = sock.recv(BUFFER_SIZE).decode('utf-8')
+        if not data:
+            print("Nessun dato ricevuto. Chiusura connessione.")
+            break
+
+        decoded_data = data.strip()
+
+        if not decoded_data:
+            print("Dati vuoti ricevuti, saltati.")
+            continue
+
+        parts = decoded_data.split(';')
+        if len(parts) == 3:
+            try:
+                node_name = parts[0]
+                temperature_label = parts[1]
+                temperatura_float = float(parts[2])
+
+                if temperatura_float == 0.0 or temperatura_float is None:
+                    print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
+                    continue
+
+            except ValueError as e:
+                print(f"Errore nella conversione dei dati: {e}")
+                continue
+        else:
+            print("Formato dei dati ricevuti non valido.")
+            continue
+
+        # Inizializza la finestra di dati e lo scaler per il nodo se non esistono
+        if node_name not in node_windows:
+            node_windows[node_name] = []
+            node_scalers[node_name] = MinMaxScaler(feature_range=(0, 1))
+            node_scaler_fitted[node_name] = False
+
+        # Aggiorna la finestra di dati scorrevole per il nodo corrente
+        node_windows[node_name].append(temperatura_float)
+        if len(node_windows[node_name]) > window_size:
+            node_windows[node_name].pop(0)  # Rimuove il valore più vecchio se la finestra supera window_size
+
+        # Addestra il MinMaxScaler per il nodo corrente
+        if not node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+            data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
+            node_scalers[node_name].fit(data_array)
+            node_scaler_fitted[node_name] = True
+            print(f"MinMaxScaler addestrato con successo per il nodo {node_name}.")
+
+        # Effettua la predizione per il nodo corrente
+        if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+            X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
+
+            # print(f"Predizione per il nodo {node_name} con dati: {X_test.flatten()}")  # Log aggiuntivo
+            future_value = predict_future(X_test, node_scalers[node_name], loaded_model)
+            if future_value is not None:
+                future_value_clean = clean_value(future_value)
+                current_time_epoch = int(time.time())
+
+                if node_name not in node_ids:
+                    node_ids[node_name] = 0
+                else:
+                    node_ids[node_name] += 1
+
+                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value_clean, temperature_label, current_time_epoch]
+
+                save_to_csv(csv_file_path, data_to_save)
+                print(f"Output: {data_to_save}")
+
+        # Ritardo per evitare di ricevere troppi dati rapidamente
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    print("Interruzione manuale ricevuta.")
+except Exception as e:
+    print(f"Errore inaspettato: {e}")
 finally:
-    print("Chiusura della connessione e terminazione del programma.")
+    sock.close()
+    print("Connessione al server TCP chiusa.")
