@@ -79,23 +79,29 @@ try:
             print("Dati vuoti ricevuti, saltati.")
             continue
 
-        parts = decoded_data.split(';')
-        if len(parts) == 3:
-            try:
-                node_name = parts[0]
-                temperature_label = parts[1]
-                temperatura_float = float(parts[2])
+        # Dividi i dati in righe
+        lines = decoded_data.split('\n')
 
-                if temperatura_float == 0.0 or temperatura_float is None:
-                    print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
+        for line in lines:
+            parts = line.split(';')
+
+            if len(parts) == 3:
+                try:
+                    node_name = parts[0]
+                    temperature_label = parts[1]
+                    temperatura_float = float(parts[2])
+
+                    if temperatura_float == 0.0 or temperatura_float is None:
+                        print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
+                        continue
+
+                except ValueError as e:
+                    print(f"Errore nella conversione dei dati: {e}")
                     continue
-
-            except ValueError as e:
-                print(f"Errore nella conversione dei dati: {e}")
+            else:
+                print(f"Formato dei dati ricevuti non valido per la riga: {line}")
                 continue
-        else:
-            print("Formato dei dati ricevuti non valido.")
-            continue
+
 
         # Inizializza la finestra di dati e lo scaler per il nodo se non esistono
         if node_name not in node_windows:
