@@ -1,0 +1,49 @@
+# File docker-compose-ble-scanner.yml
+
+version: "3.9"
+
+### Services ###
+services:
+  lstm:
+    # image: "arolgroup/ble-scanner:20230525"
+    image: "pit836/lstm:latest"
+    #
+    # Specify a custom container name, rather than a generated default name.
+    container_name: lstm
+    #
+    # # Run an init process (PID 1) inside the container that forwards signals and reaps processes.
+    # init: true
+    # Restart a container irrespective of the exit code but will stop restarting when the service is stopped or removed
+    restart: unless-stopped
+    # # Prevent the application processes inside the container from gaining new privileges during runtime
+    # security_opt:
+    #   - "no-new-privileges:true"
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    #
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+    network_mode: "host"
+    # ports:
+    #   # Make HTTPS port (9443) reachable from localhost
+    #   - "9443:9443"
+    expose:
+      # Expose TCP port (7070) to make it accessible for other containers in the same network
+      - "8080"
+    volumes:
+      - dbfiles:/usr/src/app/dist/dbFiles
+
+### NETWORKS ###
+# networks:
+#   hostnet:
+#     external: true
+#     name: host
+
+### Volumes ###
+volumes:
+  dbfiles:
+
+# EOF
