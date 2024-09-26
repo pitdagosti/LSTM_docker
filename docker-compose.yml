@@ -36,6 +36,12 @@ services:
     volumes:
       - dbfiles:/usr/src/app/dist/dbFiles
 
+    # Limite CPU al 20%
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"  # Limita l'uso della CPU al 20%
+
 ### NETWORKS ###
 # networks:
 #   hostnet:
