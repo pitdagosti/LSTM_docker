@@ -91,7 +91,7 @@ try:
                     temperature_label = parts[1]
                     temperatura_float = float(parts[2])
 
-                    if temperatura_float == 0.0 or temperatura_float is None:
+                    if abs(temperatura_float) < 0.1 or temperatura_float is None:
                         print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
                         continue
 
