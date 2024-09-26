@@ -64,7 +64,7 @@ except Exception as e:
     print(f"Errore durante la connessione al server: {e}")
     raise
 
-csv_file_path = 'dbFiles/temperature_predictions.csv'
+csv_file_path = '/usr/src/app/dist/dbFiles/temperature_predictions.csv'
 
 try:
     while True:
