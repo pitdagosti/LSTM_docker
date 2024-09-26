@@ -7,12 +7,38 @@ import csv
 import socket
 from sklearn.preprocessing import MinMaxScaler
 
-def predict_future(X_test, scaler, model):
+def load_tflite_model(model_path):
+    """Carica il modello TFLite e alloca i tensori."""
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+def predict_with_tflite(interpreter, X_test):
+    """Esegue la predizione utilizzando un modello TFLite."""
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    # Prepara i dati per l'input
+    interpreter.set_tensor(input_details[0]['index'], X_test.astype(np.float32))
+
+    # Esegui l'inferenza
+    interpreter.invoke()
+
+    # Recupera l'output
+    output = interpreter.get_tensor(output_details[0]['index'])
+    return output
+
+def predict_future(X_test, scaler, interpreter):
     try:
+        # Scala i dati di input
         X_test_scaled = scaler.transform(X_test)
-        X_test_scaled = X_test_scaled.reshape(1, -1, 1)  # Assicuriamoci che il dato sia della forma corretta per il modello
-        future = model.predict(X_test_scaled)
-        future_value = scaler.inverse_transform(future)[0][0]
+        
+        # Assicurati che X_test_scaled abbia la forma corretta per il modello
+        X_test_scaled = X_test_scaled.reshape(1, -1, 1).astype(np.float32)  # Dimensione fissa (1, window_size, 1)
+
+        # Effettua la predizione con il modello TFLite
+        future = predict_with_tflite(interpreter, X_test_scaled)
+        future_value = scaler.inverse_transform(future)[0][0]  # Inverso della scalatura
         return future_value
     except Exception as e:
         print(f"Errore durante la predizione: {e}")
@@ -30,17 +56,18 @@ def save_to_csv(file_path, data):
             writer.writerow(['ID', 'Node_Name', 'Temperature_Actual', 'Temperature_Future', 'Label', 'Timestamp'])
         writer.writerow(data)
 
+# Carica il modello TFLite
 try:
-    loaded_model = tf.keras.models.load_model("model_50_sens.keras")
-    print("Modello caricato con successo.")
+    interpreter = load_tflite_model("lstm.tflite")
+    print("Modello TFLite caricato con successo.")
 except Exception as e:
-    print(f"Errore durante il caricamento del modello: {e}")
+    print(f"Errore durante il caricamento del modello TFLite: {e}")
     raise
 
 tf.config.run_functions_eagerly(True)
 tf.data.experimental.enable_debug_mode()
 
-window_size = 20
+window_size = 20  # Cambia a 168 se il tuo modello si aspetta 168
 
 # Dizionari per tracciare le finestre di dati e gli scaler per ogni nodo
 node_windows = {}
@@ -102,7 +129,6 @@ try:
                 print(f"Formato dei dati ricevuti non valido per la riga: {line}")
                 continue
 
-
         # Inizializza la finestra di dati e lo scaler per il nodo se non esistono
         if node_name not in node_windows:
             node_windows[node_name] = []
@@ -123,10 +149,11 @@ try:
 
         # Effettua la predizione per il nodo corrente
         if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+            # Assicurati che X_test sia sempre di dimensione (1, window_size, 1)
             X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
 
-            # print(f"Predizione per il nodo {node_name} con dati: {X_test.flatten()}")  # Log aggiuntivo
-            future_value = predict_future(X_test, node_scalers[node_name], loaded_model)
+            # Effettua la predizione utilizzando il modello TFLite
+            future_value = predict_future(X_test, node_scalers[node_name], interpreter)
             if future_value is not None:
                 future_value_clean = clean_value(future_value)
                 current_time_epoch = int(time.time())
