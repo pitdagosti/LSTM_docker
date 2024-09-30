@@ -12,7 +12,7 @@ def load_tflite_model(model_path):
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     return interpreter
-ciao
+
 def predict_with_tflite(interpreter, X_test):
     """Esegue la predizione utilizzando un modello TFLite."""
     input_details = interpreter.get_input_details()
