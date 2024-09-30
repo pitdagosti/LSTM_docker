@@ -146,7 +146,9 @@ try:
                             not node_scaler_fitted[node_name]
                             and len(node_windows[node_name]) >= window_size
                         ):
-                            data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
+                            data_array = np.array(
+                                node_windows[node_name][-window_size:]
+                            ).reshape(-1, 1)
                             node_scalers[node_name].fit(data_array)
                             node_scaler_fitted[node_name] = True
                             print(
@@ -157,7 +159,9 @@ try:
                             node_scaler_fitted[node_name]
                             and len(node_windows[node_name]) >= window_size
                         ):
-                            X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
+                            X_test = np.array(
+                                 node_windows[node_name][-window_size:]
+                             ).reshape(-1, 1)
                             future_value = predict_future(
                                 X_test, node_scalers[node_name], interpreter
                             )
