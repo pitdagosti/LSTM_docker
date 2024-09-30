@@ -66,9 +66,12 @@ tf.data.experimental.enable_debug_mode()
 window_size = 20  # Cambia a 168 se il tuo modello si aspetta 168
 
 # Dizionari per tracciare le finestre di dati e gli scaler per ogni nodo
-node_windows = {}
-node_scalers = {}
-node_scaler_fitted = {}
+node_windows: Dict[str, List[float]] = {}
+node_scalers: Dict[str, MinMaxScaler] = {}
+node_scaler_fitted: Dict[str, bool] = {}
+
+# Dizionario per tracciare l'ID corrente per ogni nodo
+node_ids: Dict[str, int] = {}
 
 # Dizionario per tracciare l'ID corrente per ogni nodo
 node_ids = {}
