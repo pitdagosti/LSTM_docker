@@ -1,19 +1,19 @@
+import numpy as np
+import tensorflow as tf
+import re
+import time
 import os
 import csv
 import socket
-import time
-
-import numpy as np
-import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 
-def load_tflite_model(model_path: str) -> tf.lite.Interpreter:
+def load_tflite_model(model_path):
     """Carica il modello TFLite e alloca i tensori."""
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     return interpreter
 
-def predict_with_tflite(interpreter: tf.lite.Interpreter, X_test: np.ndarray) -> np.ndarray:
+def predict_with_tflite(interpreter, X_test):
     """Esegue la predizione utilizzando un modello TFLite."""
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -28,11 +28,11 @@ def predict_with_tflite(interpreter: tf.lite.Interpreter, X_test: np.ndarray) ->
     output = interpreter.get_tensor(output_details[0]['index'])
     return output
 
-def predict_future(X_test: np.ndarray, scaler: MinMaxScaler, interpreter: tf.lite.Interpreter) -> float:
+def predict_future(X_test, scaler, interpreter):
     try:
         # Scala i dati di input
         X_test_scaled = scaler.transform(X_test)
-
+        
         # Assicurati che X_test_scaled abbia la forma corretta per il modello
         X_test_scaled = X_test_scaled.reshape(1, -1, 1).astype(np.float32)  # Dimensione fissa (1, window_size, 1)
 
@@ -44,7 +44,7 @@ def predict_future(X_test: np.ndarray, scaler: MinMaxScaler, interpreter: tf.lit
         print(f"Errore durante la predizione: {e}")
         return None
 
-def save_to_csv(file_path: str, data: list) -> None:
+def save_to_csv(file_path, data):
     file_exists = os.path.isfile(file_path)
     with open(file_path, mode='a', newline='') as file:
         writer = csv.writer(file)
@@ -66,12 +66,12 @@ tf.data.experimental.enable_debug_mode()
 window_size = 20  # Cambia a 168 se il tuo modello si aspetta 168
 
 # Dizionari per tracciare le finestre di dati e gli scaler per ogni nodo
-node_windows: dict = {}
-node_scalers: dict = {}
-node_scaler_fitted: dict = {}
+node_windows = {}
+node_scalers = {}
+node_scaler_fitted = {}
 
 # Dizionario per tracciare l'ID corrente per ogni nodo
-node_ids: dict = {}
+node_ids = {}
 
 # Indirizzo e porta del server TCP
 TCP_HOSTNAME = '100.109.221.5'  # Nome del dominio mDNS della Raspberry Pi
@@ -79,7 +79,7 @@ TCP_PORT = 7070  # Cambia con la porta corretta
 BUFFER_SIZE = 1024
 
 # Funzione per tentare la connessione al server
-def connect_to_server() -> socket.socket:
+def connect_to_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         # Risolvi il nome mDNS (es. raspberrypi.local)
@@ -87,14 +87,15 @@ def connect_to_server() -> socket.socket:
         print(f"Connesso al server TCP {TCP_HOSTNAME}:{TCP_PORT}.")
         return sock
     except Exception as e:
-        print(f"Errore durante la connessione al server: {e}")
-        time.sleep(5)  # Ritardo prima di tentare di riconnettersi
+        print(f"Errore durante la connessione al server {TCP_HOSTNAME}:{TCP_PORT}: {e}")
         return None
 
 # Connessione al server TCP
 sock = None
 while sock is None:
+    print("Tentativo di connessione al server...")
     sock = connect_to_server()
+    time.sleep(5)  # Attende 5 secondi prima di un nuovo tentativo
 
 csv_file_path = '/usr/src/app/dist/dbFiles/temperature_predictions.csv'
 
@@ -107,12 +108,15 @@ try:
 
             # Se non riceve alcun dato (es. il server chiude la connessione), tenta di riconnettersi
             if not data:
-                print("Nessun dato ricevuto. Tentativo di riconnessione.")
+                print("Nessun dato ricevuto. Tentativo di riconnessione...")
+                sock.close()  # Chiude il socket
                 sock = None  # Imposta il socket a None per indicare che la connessione è persa
 
                 # Ciclo di riconnessione: tenta di ristabilire la connessione finché non riesce
                 while sock is None:
+                    print("Tentativo di riconnessione al server...")
                     sock = connect_to_server()  # Chiama la funzione per riconnettersi al server
+                    time.sleep(5)  # Attende 5 secondi prima di un nuovo tentativo
                 continue  # Ritorna all'inizio del ciclo principale una volta che la connessione è ristabilita
 
             # Rimuove eventuali spazi bianchi o caratteri di nuova linea dai dati ricevuti
@@ -161,29 +165,52 @@ try:
                             data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
                             node_scalers[node_name].fit(data_array)
                             node_scaler_fitted[node_name] = True
-                            print(f"Scaler addestrato per il nodo {node_name}")
+                            print(f"MinMaxScaler addestrato con successo per il nodo {node_name}.")
 
-                        # Se lo scaler è addestrato, effettua una predizione
-                        if node_scaler_fitted[node_name]:
-                            future_temperature = predict_future(
-                                np.array(node_windows[node_name][-window_size:]).reshape(-1, 1), 
-                                node_scalers[node_name], 
-                                interpreter
-                            )
+                        # Effettua la predizione per il nodo corrente
+                        if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
+                            # Assicurati che X_test sia sempre di dimensione (1, window_size, 1)
+                            X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
 
-                            # Crea un ID unico per il nodo, utile per il salvataggio nel CSV
-                            node_id = node_ids.get(node_name, 1)
-                            node_ids[node_name] = node_id + 1  # Incrementa l'ID per il prossimo utilizzo
+                            # Effettua la predizione utilizzando il modello TFLite
+                            future_value = predict_future(X_test, node_scalers[node_name], interpreter)
+                            if future_value is not None and abs(future_value) >= 0.1 and future_value != 0:
+                                current_time_epoch = int(time.time())
 
-                            # Salva i dati in CSV
-                            save_to_csv(csv_file_path, [node_id, node_name, temperatura_float, future_temperature, temperature_label, time.time()])
-                    except ValueError as ve:
-                        print(f"Errore di conversione per la linea: {line}. Errore: {ve}")
-                    except Exception as ex:
-                        print(f"Errore durante l'elaborazione della riga: {line}. Errore: {ex}")
+                                if node_name not in node_ids:
+                                    node_ids[node_name] = 0
+                                else:
+                                    node_ids[node_name] += 1
+
+                                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value, temperature_label, current_time_epoch]
+                                save_to_csv(csv_file_path, data_to_save)
+                                print(f"Output: {data_to_save}")
+
+                        # Ritardo per evitare di ricevere troppi dati rapidamente
+                        time.sleep(1)
+
+                    except ValueError as e:
+                        print(f"Errore nella conversione dei dati: {e}")
+                        continue  # Salta al prossimo ciclo del loop in caso di errore
+                else:
+                    # Se la riga non è nel formato previsto (con 3 parti separate da ';'), viene ignorata
+                    print(f"Formato dei dati ricevuti non valido per la riga: {line}")
+                    continue  # Salta al prossimo ciclo del loop
+
+        except (socket.error, KeyboardInterrupt):
+            print("Errore o interruzione manuale. Tentativo di riconnessione...")
+            sock.close()
+            sock = None
+            while sock is None:
+                print("Tentativo di riconnessione al server...")
+                sock = connect_to_server()
+                time.sleep(5)  # Attende 5 secondi prima di un nuovo tentativo
+
 except KeyboardInterrupt:
-    print("Terminato dal programma.")
+    print("Interruzione manuale ricevuta.")
+except Exception as e:
+    print(f"Errore inaspettato: {e}")
 finally:
-    # Chiude il socket quando il ciclo principale termina
-    if sock:
+    if sock is not None:
         sock.close()
+        print("Connessione al server TCP chiusa.")
