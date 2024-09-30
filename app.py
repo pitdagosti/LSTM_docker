@@ -1,7 +1,6 @@
 from typing import Dict, List
 import numpy as np
 import tensorflow as tf
-import re
 import time
 import os
 import csv
@@ -13,6 +12,7 @@ def load_tflite_model(model_path):
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     return interpreter
+    
 
 def predict_with_tflite(interpreter, X_test):
     """Esegue la predizione utilizzando un modello TFLite."""
@@ -28,6 +28,7 @@ def predict_with_tflite(interpreter, X_test):
     # Recupera l'output
     output = interpreter.get_tensor(output_details[0]['index'])
     return output
+    
 
 def predict_future(X_test, scaler, interpreter):
     try:
@@ -44,6 +45,7 @@ def predict_future(X_test, scaler, interpreter):
     except Exception as e:
         print(f"Errore durante la predizione: {e}")
         return None
+        
 
 def save_to_csv(file_path, data):
     file_exists = os.path.isfile(file_path)
@@ -52,6 +54,7 @@ def save_to_csv(file_path, data):
         if not file_exists:
             writer.writerow(['ID', 'Node_Name', 'Temperature_Actual', 'Temperature_Future', 'Label', 'Timestamp'])
         writer.writerow(data)
+        
 
 # Carica il modello TFLite
 try:
@@ -94,6 +97,7 @@ def connect_to_server():
         print(f"Errore durante la connessione al server: {e}")
         time.sleep(5)  # Ritardo prima di tentare di riconnettersi
         return None
+
 
 # Connessione al server TCP
 sock = None
