@@ -44,10 +44,6 @@ def predict_future(X_test, scaler, interpreter):
         print(f"Errore durante la predizione: {e}")
         return None
 
-def clean_value(value):
-    cleaned_value = re.sub(r"[\[\]']", "", str(value))
-    return cleaned_value
-
 def save_to_csv(file_path, data):
     file_exists = os.path.isfile(file_path)
     with open(file_path, mode='a', newline='') as file:
@@ -118,8 +114,9 @@ try:
                     temperature_label = parts[1]
                     temperatura_float = float(parts[2])
 
-                    if abs(temperatura_float) < 0.1 or temperatura_float is None:
-                        print(f"Temperatura non valida: {temperatura_float} per il nodo {node_name}")
+                    # Controllo per escludere esplicitamente lo zero e valori anomali
+                    if temperatura_float == 0.0 or temperatura_float is None or abs(temperatura_float) < 0.1 or temperatura_float < -50 or temperatura_float > 100:
+                        print(f"Temperatura non valida (0 o fuori range): {temperatura_float} per il nodo {node_name}")
                         continue
 
                 except ValueError as e:
@@ -154,8 +151,7 @@ try:
 
             # Effettua la predizione utilizzando il modello TFLite
             future_value = predict_future(X_test, node_scalers[node_name], interpreter)
-            if future_value is not None:
-                future_value_clean = clean_value(future_value)
+            if future_value is not None and abs(future_value) >= 0.1 and future_value != 0:
                 current_time_epoch = int(time.time())
 
                 if node_name not in node_ids:
@@ -163,8 +159,7 @@ try:
                 else:
                     node_ids[node_name] += 1
 
-                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value_clean, temperature_label, current_time_epoch]
-
+                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value, temperature_label, current_time_epoch]
                 save_to_csv(csv_file_path, data_to_save)
                 print(f"Output: {data_to_save}")
 
