@@ -6,6 +6,7 @@ import os
 import csv
 import socket
 from sklearn.preprocessing import MinMaxScaler
+from typing import Dict, List
 
 def load_tflite_model(model_path):
     """Carica il modello TFLite e alloca i tensori."""
@@ -66,12 +67,12 @@ tf.data.experimental.enable_debug_mode()
 window_size = 20  # Cambia a 168 se il tuo modello si aspetta 168
 
 # Dizionari per tracciare le finestre di dati e gli scaler per ogni nodo
-node_windows = {}
-node_scalers = {}
-node_scaler_fitted = {}
+node_windows: Dict[str, List[float]] = {}
+node_scalers: Dict[str, MinMaxScaler] = {}
+node_scaler_fitted: Dict[str, bool] = {}
 
 # Dizionario per tracciare l'ID corrente per ogni nodo
-node_ids = {}
+node_ids: Dict[str, int] = {}
 
 # Indirizzo e porta del server TCP
 TCP_HOSTNAME = '100.109.221.5'  # Nome del dominio mDNS della Raspberry Pi
