@@ -71,7 +71,7 @@ node_scalers: Dict[str, MinMaxScaler] = {}
 node_scaler_fitted: Dict[str, bool] = {}
 node_ids: Dict[str, int] = {}
 
-TCP_HOSTNAME = "100.109.221.5"
+TCP_HOSTNAME = "0.0.0.0"
 TCP_PORT = 7070
 BUFFER_SIZE = 1024
 
