@@ -41,16 +41,7 @@ def save_to_csv(file_path, data):
     with open(file_path, mode="a", newline="") as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(
-                [
-                    "ID",
-                    "Node_Name",
-                    "Temperature_Actual",
-                    "Temperature_Future",
-                    "Label",
-                    "Timestamp",
-                ]
-            )
+            writer.writerow(["ID", "Node_Name", "Temperature_Actual", "Temperature_Future", "Label", "Timestamp"])
         writer.writerow(data)
 
 
@@ -123,14 +114,8 @@ try:
                         temperature_label = parts[1]
                         temperatura_float = float(parts[2])
 
-                        if (
-                            temperatura_float == 0.0
-                            or temperatura_float is None
-                            or abs(temperatura_float) < 0.1
-                        ):
-                            print(
-                                f"Temperatura non valida (0 o fuori range): {temperatura_float} per il nodo {node_name}"
-                            )
+                        if temperatura_float == 0.0 or temperatura_float is None or abs(temperatura_float) < 0.1:
+                            print(f"Temperatura non valida (0 o fuori range): {temperatura_float} per il nodo {node_name}")
                             continue
 
                         if node_name not in node_windows:
@@ -142,43 +127,22 @@ try:
                         if len(node_windows[node_name]) > window_size:
                             node_windows[node_name].pop(0)
 
-                        if (
-                            not node_scaler_fitted[node_name]
-                            and len(node_windows[node_name]) >= window_size
-                        ):
+                        if not node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
                             data_array = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
                             node_scalers[node_name].fit(data_array)
                             node_scaler_fitted[node_name] = True
-                            print(
-                                f"MinMaxScaler addestrato con successo per il nodo {node_name}."
-                            )
+                            print(f"MinMaxScaler addestrato con successo per il nodo {node_name}.")
 
-                        if (
-                            node_scaler_fitted[node_name]
-                            and len(node_windows[node_name]) >= window_size
-                        ):
+                        if node_scaler_fitted[node_name] and len(node_windows[node_name]) >= window_size:
                             X_test = np.array(node_windows[node_name][-window_size:]).reshape(-1, 1)
-                            future_value = predict_future(
-                                X_test, node_scalers[node_name], interpreter
-                            )
-                            if (
-                                future_value is not None
-                                and abs(future_value) >= 0.1
-                                and future_value != 0
-                            ):
+                            future_value = predict_future(X_test, node_scalers[node_name], interpreter)
+                            if future_value is not None and abs(future_value) >= 0.1 and future_value != 0:
                                 current_time_epoch = int(time.time())
                                 if node_name not in node_ids:
                                     node_ids[node_name] = 0
                                 else:
                                     node_ids[node_name] += 1
-                                data_to_save = [
-                                    node_ids[node_name],
-                                    node_name,
-                                    temperatura_float,
-                                    future_value,
-                                    temperature_label,
-                                    current_time_epoch,
-                                ]
+                                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value, temperature_label, current_time_epoch]
                                 save_to_csv(csv_file_path, data_to_save)
                                 print(f"Output: {data_to_save}")
 
