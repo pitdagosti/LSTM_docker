@@ -122,9 +122,9 @@ By default, the predictions are saved in the following path:
 
 ## Results
 
-The container works with a usage of around 1% of CPU and 266 MB of memory.
+The container works with a usage of a maximum of 20% of CPU and 260 MB of memory.
 
-<img width="1391" alt="Screenshot 2024-09-26 alle 17 06 48" src="https://github.com/user-attachments/assets/0ce04447-4fe3-4c6f-a16f-7e3b611d718f">
+<img width="1390" alt="Screenshot 2024-09-30 alle 16 08 26" src="https://github.com/user-attachments/assets/751b4e13-b03e-44cc-94ac-e92cc890ac19">
 
 **The predictions are quite precise, with a RMSE of ????**
 
