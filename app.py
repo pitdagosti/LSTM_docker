@@ -54,7 +54,16 @@ def save_to_csv(file_path, data):
     with open(file_path, mode="a", newline="") as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(["ID", "Node_Name", "Temperature_Actual", "Temperature_Future", "Label", "Timestamp"])
+            writer.writerow(
+                [
+                    "ID",
+                    "Node_Name",
+                    "Temperature_Actual",
+                    "Temperature_Future",
+                    "Label",
+                    "Timestamp",
+                ]
+            )
         writer.writerow(data)
 
 
@@ -194,6 +203,7 @@ try:
                                 else:
                                     node_ids[node_name] += 1
 
+                                # Salva i risultati nel file CSV
                                 data_to_save = [
                                     node_ids[node_name],
                                     node_name,
@@ -204,9 +214,6 @@ try:
                                 ]
                                 save_to_csv(csv_file_path, data_to_save)
                                 print(f"Output: {data_to_save}")
-
-                        # Ritardo per evitare di ricevere troppi dati rapidamente
-                        time.sleep(1)
 
                     except ValueError as e:
                         print(f"Errore nella conversione dei dati: {e}")
