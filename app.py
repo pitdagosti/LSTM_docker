@@ -161,7 +161,7 @@ try:
                         ):
                             X_test = np.array(
                                 node_windows[node_name][-window_size:]
-                             ).reshape(-1, 1)
+                            ).reshape(-1, 1)
                             future_value = predict_future(
                                 X_test, node_scalers[node_name], interpreter
                             )
