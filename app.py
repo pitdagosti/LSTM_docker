@@ -1,6 +1,5 @@
 import csv
 import os
-import re
 import socket
 import time
 from typing import Dict, List
@@ -23,13 +22,13 @@ def predict_with_tflite(interpreter, X_test):
     output_details = interpreter.get_output_details()
 
     # Prepara i dati per l'input
-    interpreter.set_tensor(input_details[0]['index'], X_test.astype(np.float32))
+    interpreter.set_tensor(input_details[0]["index"], X_test.astype(np.float32))
 
     # Esegui l'inferenza
     interpreter.invoke()
 
     # Recupera l'output
-    output = interpreter.get_tensor(output_details[0]['index'])
+    output = interpreter.get_tensor(output_details[0]["index"])
     return output
 
 
@@ -52,10 +51,10 @@ def predict_future(X_test, scaler, interpreter):
 
 def save_to_csv(file_path, data):
     file_exists = os.path.isfile(file_path)
-    with open(file_path, mode='a', newline='') as file:
+    with open(file_path, mode="a", newline="") as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(['ID', 'Node_Name', 'Temperature_Actual', 'Temperature_Future', 'Label', 'Timestamp'])
+            writer.writerow(["ID", "Node_Name", "Temperature_Actual", "Temperature_Future", "Label", "Timestamp"])
         writer.writerow(data)
 
 
@@ -81,7 +80,7 @@ node_scaler_fitted: Dict[str, bool] = {}
 node_ids: Dict[str, int] = {}
 
 # Indirizzo e porta del server TCP
-TCP_HOSTNAME = '100.109.221.5'  # Nome del dominio mDNS della Raspberry Pi
+TCP_HOSTNAME = "100.109.221.5"  # Nome del dominio mDNS della Raspberry Pi
 TCP_PORT = 7070  # Cambia con la porta corretta
 BUFFER_SIZE = 1024
 
@@ -106,14 +105,14 @@ while sock is None:
     sock = connect_to_server()
     time.sleep(5)  # Attende 5 secondi prima di un nuovo tentativo
 
-csv_file_path = '/usr/src/app/dist/dbFiles/temperature_predictions.csv'
+csv_file_path = "/usr/src/app/dist/dbFiles/temperature_predictions.csv"
 
 try:
     # Ciclo infinito che mantiene attiva la connessione TCP e gestisce i dati ricevuti
     while True:
         try:
             # Riceve i dati dal server TCP, con una dimensione massima definita da BUFFER_SIZE
-            data = sock.recv(BUFFER_SIZE).decode('utf-8')  # I dati ricevuti vengono decodificati in UTF-8
+            data = sock.recv(BUFFER_SIZE).decode("utf-8")  # I dati ricevuti vengono decodificati in UTF-8
 
             # Se non riceve alcun dato (es. il server chiude la connessione), tenta di riconnettersi
             if not data:
@@ -137,12 +136,12 @@ try:
                 continue  # Salta al prossimo ciclo del loop
 
             # Divide i dati in righe (nel caso il server invii più righe di dati in un singolo pacchetto)
-            lines = decoded_data.split('\n')
+            lines = decoded_data.split("\n")
 
             # Itera su ogni riga separatamente per processarla
             for line in lines:
                 # Divide ogni riga in tre parti separate dal delimitatore ';'
-                parts = line.split(';')
+                parts = line.split(";")
 
                 # Controlla che ci siano esattamente 3 parti (nome del nodo, etichetta della temperatura, valore della temperatura)
                 if len(parts) == 3:
@@ -154,7 +153,11 @@ try:
 
                         # Filtra i dati con controlli di validità per evitare valori anomali
                         # Ignora le temperature che sono esattamente 0.0, fuori dal range logico (-50°C a 100°C), o valori molto piccoli
-                        if (temperatura_float == 0.0 or temperatura_float is None or abs(temperatura_float) < 0.1):
+                        if (
+                            temperatura_float == 0.0
+                            or temperatura_float is None
+                            or abs(temperatura_float) < 0.1
+                        ):
                             print(f"Temperatura non valida (0 o fuori range): {temperatura_float} per il nodo {node_name}")
                             continue  # Salta al prossimo ciclo del loop se i dati non sono validi
 
@@ -191,7 +194,14 @@ try:
                                 else:
                                     node_ids[node_name] += 1
 
-                                data_to_save = [node_ids[node_name], node_name, temperatura_float, future_value, temperature_label, current_time_epoch]
+                                data_to_save = [
+                                    node_ids[node_name],
+                                    node_name,
+                                    temperatura_float,
+                                    future_value,
+                                    temperature_label,
+                                    current_time_epoch,
+                                ]
                                 save_to_csv(csv_file_path, data_to_save)
                                 print(f"Output: {data_to_save}")
 
