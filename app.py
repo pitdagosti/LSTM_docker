@@ -1,18 +1,21 @@
+import csv
+import os
+import re
+import socket
+import time
+from typing import Dict, List
+
 import numpy as np
 import tensorflow as tf
-import re
-import time
-import os
-import csv
-import socket
 from sklearn.preprocessing import MinMaxScaler
-from typing import Dict, List
+
 
 def load_tflite_model(model_path):
     """Carica il modello TFLite e alloca i tensori."""
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     return interpreter
+
 
 def predict_with_tflite(interpreter, X_test):
     """Esegue la predizione utilizzando un modello TFLite."""
@@ -29,11 +32,12 @@ def predict_with_tflite(interpreter, X_test):
     output = interpreter.get_tensor(output_details[0]['index'])
     return output
 
+
 def predict_future(X_test, scaler, interpreter):
     try:
         # Scala i dati di input
         X_test_scaled = scaler.transform(X_test)
-        
+
         # Assicurati che X_test_scaled abbia la forma corretta per il modello
         X_test_scaled = X_test_scaled.reshape(1, -1, 1).astype(np.float32)  # Dimensione fissa (1, window_size, 1)
 
@@ -45,6 +49,7 @@ def predict_future(X_test, scaler, interpreter):
         print(f"Errore durante la predizione: {e}")
         return None
 
+
 def save_to_csv(file_path, data):
     file_exists = os.path.isfile(file_path)
     with open(file_path, mode='a', newline='') as file:
@@ -52,6 +57,7 @@ def save_to_csv(file_path, data):
         if not file_exists:
             writer.writerow(['ID', 'Node_Name', 'Temperature_Actual', 'Temperature_Future', 'Label', 'Timestamp'])
         writer.writerow(data)
+
 
 # Carica il modello TFLite
 try:
@@ -79,6 +85,7 @@ TCP_HOSTNAME = '100.109.221.5'  # Nome del dominio mDNS della Raspberry Pi
 TCP_PORT = 7070  # Cambia con la porta corretta
 BUFFER_SIZE = 1024
 
+
 # Funzione per tentare la connessione al server
 def connect_to_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,6 +97,7 @@ def connect_to_server():
     except Exception as e:
         print(f"Errore durante la connessione al server {TCP_HOSTNAME}:{TCP_PORT}: {e}")
         return None
+
 
 # Connessione al server TCP
 sock = None
